@@ -1,0 +1,11 @@
+[Unit]
+Description=trigger that starts local streams when requested by ffserver
+After=syslog.target
+
+[Service]
+ExecStart=/usr/local/bin/ffserver-trigger.pl
+Type=simple
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
