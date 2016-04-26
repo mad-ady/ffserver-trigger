@@ -17,7 +17,7 @@ my $filetail = eval{
 die "This program requires that you install the File::Tail module (sudo apt-get install libfile-tail-perl)" if(!$filetail);
 
 #some global config options
-my $logfile = '/var/log/syslog'
+my $logfile = '/var/log/syslog';
 # log line looks like this:
 # Apr 26 13:52:04 odroid64 ffserver[11182]: Tue Apr 26 13:52:04 2016 192.168.1.5:0 - - "PLAY live.h264.sdp/streamid=1 RTP/TCP"
 my $triggerString = 'ffserver.*PLAY live.h264.sdp\/streamid';
@@ -29,7 +29,7 @@ openlog('ffserver-trigger', "pid", "local0");    # don't forget this
 
 my $file = File::Tail->new(name => $logfile, maxinterval => 3, interval => 0.5 );
 while (defined(my $line=$file->read)) {
-    print "DBG: $line";
+#    print "DBG: $line";
     if($line=~/$triggerString/){
     	syslog("info", "FFServer playback detected - checking if we need to start the stream");
 	streamProcessing($line);
@@ -47,7 +47,7 @@ while (defined(my $line=$file->read)) {
 sub streamProcessing{
     my $line = shift;
     my $lockfile = '/tmp/ffserver-trigger';
-    my $graceInterval = 5; #ignore requests if they have been serviced in the last $graceInterval seconds
+    my $graceInterval = 20; #ignore requests if they have been serviced in the last $graceInterval seconds
     if(-f $lockfile){
 	my $mtime = (stat($lockfile))[9];
 	#check if the lockfile has not been updated more recently than $graceInterval
@@ -68,9 +68,12 @@ sub streamProcessing{
     }
 }
 
+
+# edit the code below to fit your restarting needs. Note, this process should start as root to be able to restart services
+
 sub restartFFMpeg{
     my $lockfile = shift;
-    syslog("info", "Service restart output:".`/usr/sbin/service mjpg_service restart; /usr/sbin/service ffmpeg restart`);
+    `/usr/sbin/service mjpg_streamer restart; sleep 2; /usr/sbin/service ffmpeg restart`;
     #touch the lockfile
     my $atime = (stat($lockfile))[8];
     utime $atime, time(), $lockfile;
