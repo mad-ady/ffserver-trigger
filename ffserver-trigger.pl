@@ -40,6 +40,7 @@ openlog('ffserver-trigger', "pid", "local0");    # don't forget this
 my %connections = ();
 
 my $lastStarted = 0;
+my $lastAction = time(); #remember when we last checked status
 
 #set up the log listener
 
@@ -59,6 +60,28 @@ while (defined(my $line=$file->read)) {
 	#All RTSP clients are disconnected
 	syslog("info", "Detected ffserver crash - disconnecting all clients");
 	%connections = ();
+    }
+    #Use every log line like the ticks of a timer. 
+    #If you get more than 30 min from the last action, check if you need to keep the stream running 
+    #sometimes it might fail to stop
+    if(time() - $lastAction > 1800){
+	$lastAction = time();
+	my $total = get554Sessions();
+	if($total == 0){
+		#see if ffmpeg is running
+		my $ffmpeg = getFFMPEGStatus();
+		if($ffmpeg == 0){
+			#stop ffmpeg since nobody's watching
+			syslog("info", "Stopping orphaned ffmpeg service because nobody is watching");
+			stopFFMPEG();
+		}
+		else{
+			syslog("info", "0 users watching, ffmpeg is already stopped");
+		}
+    	}
+	else{
+		syslog("info", "$total users watching, leaving ffmpeg alone");
+	}
     }
 }
 
@@ -90,7 +113,7 @@ sub streamProcessing{
     }
     if($line=~/$stopStreaming/){
 	my $ip = $1;
-	my $total = getTotalViewers();
+	my $total = get554Sessions();
 	#Use netstat to extract established TCP connections to port 554 for this IP
         my @ports = netstat($ip);
 	syslog("debug", "Analyzing a stop request");
@@ -108,6 +131,7 @@ sub streamProcessing{
     }
 }
 
+#This is replaced by get554Sessions
 sub getTotalViewers{
 	my $total = 0;
 	foreach my $ip (keys %connections){
@@ -116,6 +140,21 @@ sub getTotalViewers{
 		}
 	}
 	return $total;
+}
+
+sub get554Sessions{
+	# We're Linux:Proc:Net:TCP to read /proc/net/tcp
+	my $total = 0;
+    	my $table = Linux::Proc::Net::TCP->read;
+	foreach my $entry (@$table) {
+		if($entry->local_port eq 554){
+			next if ($entry->local_address eq '0.0.0.0');
+			#else, add it to the total
+			$total ++;
+		}
+	}
+	return $total;
+
 }
 
 sub getFFMPEGStatus{
