@@ -14,3 +14,5 @@ Installation:
 * test ffserver-trigger.pl by running it manually until it works as desired (logging goes to syslog)
 * enable the ffserver-trigger service: sudo systemctl enable ffserver-trigger
 * profit ?
+
+Real-world example: https://magazine.odroid.com/wp-content/uploads/ODROID-Magazine-201610.pdf#page=12
